@@ -1,0 +1,81 @@
+{
+    "name": "RetailSalesIngestionPipeline",
+    "description": "Ingests raw sales CSV from source into Azure Data Lake Storage (ADLS). Raw layer only — transformation handled by Databricks.",
+    "activities": [
+        {
+            "name": "CopySalesCSV",
+            "type": "Copy",
+            "inputs": [
+                {
+                    "referenceName": "SourceSalesCSV",
+                    "type": "DatasetReference"
+                }
+            ],
+            "outputs": [
+                {
+                    "referenceName": "SinkADLSRaw",
+                    "type": "DatasetReference"
+                }
+            ],
+            "typeProperties": {
+                "source": {
+                    "type": "DelimitedTextSource",
+                    "storeSettings": {
+                        "type": "HttpReadSettings",
+                        "requestMethod": "GET"
+                    }
+                },
+                "sink": {
+                    "type": "ParquetSink",
+                    "storeSettings": {
+                        "type": "AzureBlobFSWriteSettings"
+                    }
+                },
+                "enableStaging": false
+            }
+        }
+    ],
+    "datasets": {
+        "SourceSalesCSV": {
+            "type": "DelimitedText",
+            "linkedServiceName": "HttpLinkedService",
+            "typeProperties": {
+                "location": {
+                    "type": "HttpServerLocation",
+                    "relativeUrl": "/sales_transactions.csv"
+                },
+                "columnDelimiter": ",",
+                "firstRowAsHeader": true
+            }
+        },
+        "SinkADLSRaw": {
+            "type": "Parquet",
+            "linkedServiceName": "ADLSLinkedService",
+            "typeProperties": {
+                "location": {
+                    "type": "AzureBlobFSLocation",
+                    "fileSystem": "retail",
+                    "folderPath": "raw"
+                }
+            }
+        }
+    },
+    "triggers": [
+        {
+            "name": "DailyTrigger",
+            "type": "ScheduleTrigger",
+            "typeProperties": {
+                "recurrence": {
+                    "frequency": "Day",
+                    "interval": 1,
+                    "startTime": "2024-01-01T00:00:00Z",
+                    "timeZone": "UTC",
+                    "schedule": {
+                        "hours": [0],
+                        "minutes": [0]
+                    }
+                }
+            }
+        }
+    ]
+}

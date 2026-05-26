@@ -1,0 +1,59 @@
+# Environment variables - NEVER commit these
+.env
+
+# Python virtual environment
+venv/
+env/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+
+# ML model files - large binary files
+*.pkl
+*.onnx
+
+# Data files - too large for GitHub
+data/raw/
+data/staged/
+data/staged_fixed/
+data/curated/
+
+# RAG files - generated at runtime
+genai/rag/embeddings.pkl
+genai/rag/faiss_index
+
+# IDE files
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Spark temp files
+derby.log
+metastore_db/
+spark-warehouse/
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Coverage reports
+htmlcov/
+.coverage
