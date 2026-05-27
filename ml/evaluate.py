@@ -22,7 +22,45 @@ logger = logging.getLogger(__name__)
 
 MODEL_PATH   = "ml/saved_models/sales_classifier.pkl"
 CURATED_PATH = "data/curated/analytics_ready.parquet"
+RAW_CANDIDATES = [
+    "data/raw/sales_transactions.csv",
+    "data/raw/Walmart.csv",
+    "data/raw/walmart.csv",
+]
 TARGET_COL   = "high_sales"
+
+
+def find_raw_path() -> str | None:
+    """Return the first supported raw CSV path that exists."""
+    for path in RAW_CANDIDATES:
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def load_or_create_curated_data() -> pd.DataFrame:
+    """Load curated data, or rebuild it from the raw sales CSV if available."""
+    if os.path.exists(CURATED_PATH):
+        logger.info(f"Loading data from {CURATED_PATH}")
+        return pd.read_parquet(CURATED_PATH)
+
+    raw_path = find_raw_path()
+    if raw_path is None:
+        expected = ", ".join(RAW_CANDIDATES)
+        raise FileNotFoundError(
+            f"Missing {CURATED_PATH}. To evaluate the model, add the raw dataset at "
+            f"one of: {expected}. Then rerun this script."
+        )
+
+    logger.info(f"{CURATED_PATH} not found. Rebuilding from {raw_path}")
+    from preprocess import preprocess
+
+    df = pd.read_csv(raw_path)
+    df = preprocess(df)
+    os.makedirs(os.path.dirname(CURATED_PATH), exist_ok=True)
+    df.to_parquet(CURATED_PATH, index=False)
+    logger.info(f"Curated data saved to {CURATED_PATH}")
+    return df
 
 
 def evaluate_model() -> dict:
@@ -36,8 +74,7 @@ def evaluate_model() -> dict:
     feature_cols = bundle["feature_cols"]
 
     # Load curated data
-    logger.info(f"Loading data from {CURATED_PATH}")
-    df = pd.read_parquet(CURATED_PATH)
+    df = load_or_create_curated_data()
 
     # Keep only features model was trained on
     available = [c for c in feature_cols if c in df.columns]

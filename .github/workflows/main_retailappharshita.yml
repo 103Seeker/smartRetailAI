@@ -40,6 +40,16 @@ jobs:
           path: |
             .
             !antenv/
+            !venv/
+            !.venv/
+            !env/
+            !data/raw/
+            !data/staged/
+            !data/staged_fixed/
+            !powerbi/
+            !.env
+            !**/__pycache__/
+            !**/*.pyc
 
       # 🚫 Opting Out of Oryx Build
       # If you prefer to disable the Oryx build process during deployment, follow these steps:
@@ -73,4 +83,3 @@ jobs:
         with:
           app-name: 'retailappHarshita'
           slot-name: 'Production'
-          
