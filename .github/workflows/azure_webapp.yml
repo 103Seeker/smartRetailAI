@@ -1,95 +1,63 @@
-import pandas as pd
-import numpy as np
-import pickle
-import os
-import sys
-import logging
+name: Build and deploy Smart Retail API to Azure Web App
 
-sys.path.insert(0, os.path.abspath('.'))
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
-from sklearn.metrics import (
-    accuracy_score,
-    precision_score,
-    recall_score,
-    f1_score,
-    classification_report,
-    confusion_matrix,
-)
-from sklearn.model_selection import train_test_split
+permissions:
+  contents: read
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+env:
+  PYTHON_VERSION: "3.11"
+  STARTUP_COMMAND: "gunicorn -w 2 -k uvicorn.workers.UvicornWorker backend.main:app --bind=0.0.0.0:8000"
 
-MODEL_PATH   = "ml/saved_models/sales_classifier.pkl"
-CURATED_PATH = "data/curated/analytics_ready.parquet"
-TARGET_COL   = "high_sales"
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
 
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-def evaluate_model() -> dict:
-    """Load saved model and evaluate on test set."""
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
 
-    # Load model bundle
-    logger.info(f"Loading model from {MODEL_PATH}")
-    with open(MODEL_PATH, "rb") as f:
-        bundle = pickle.load(f)
-    model        = bundle["model"]
-    feature_cols = bundle["feature_cols"]
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-    # Load curated data
-    logger.info(f"Loading data from {CURATED_PATH}")
-    df = pd.read_parquet(CURATED_PATH)
+      - name: Validate FastAPI import
+        env:
+          APP_ENV: production
+        run: python -c "from backend.main import app; print(f'Validated {app.title}')"
 
-    # Keep only features model was trained on
-    available = [c for c in feature_cols if c in df.columns]
-    X = df[available]
-    y = df[TARGET_COL]
+      - name: Create deployment package
+        run: |
+          zip -r release.zip . \
+            -x "venv/*" \
+            -x ".venv/*" \
+            -x ".git/*" \
+            -x ".github/*" \
+            -x "*/__pycache__/*" \
+            -x "__pycache__/*" \
+            -x ".env" \
+            -x "*.pyc" \
+            -x "data/raw/*" \
+            -x "data/staged/*" \
+            -x "data/staged_fixed/*" \
+            -x "logs*/*" \
+            -x "logs*"
 
-    # Same split as training — random_state=42 ensures same test set
-    _, X_test, _, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
-
-    # Predictions
-    y_pred = model.predict(X_test)
-
-    # Metrics
-    accuracy  = accuracy_score(y_test, y_pred)
-    precision = precision_score(y_test, y_pred, zero_division=0)
-    recall    = recall_score(y_test, y_pred, zero_division=0)
-    f1        = f1_score(y_test, y_pred, zero_division=0)
-
-    metrics = {
-        "accuracy":  round(accuracy, 4),
-        "precision": round(precision, 4),
-        "recall":    round(recall, 4),
-        "f1_score":  round(f1, 4),
-    }
-
-    # Feature importances
-    importances = dict(zip(
-        available,
-        [round(x, 4) for x in model.feature_importances_]
-    ))
-    importances = dict(sorted(
-        importances.items(), key=lambda x: x[1], reverse=True
-    ))
-
-    # Print results
-    logger.info("=" * 50)
-    logger.info("MODEL EVALUATION RESULTS")
-    logger.info("=" * 50)
-    for k, v in metrics.items():
-        logger.info(f"{k.upper():<12}: {v}")
-    logger.info("\nCLASSIFICATION REPORT:")
-    logger.info(f"\n{classification_report(y_test, y_pred, target_names=['Low Sales', 'High Sales'])}")
-    logger.info("CONFUSION MATRIX:")
-    logger.info(f"\n{confusion_matrix(y_test, y_pred)}")
-    logger.info("\nFEATURE IMPORTANCES (top to bottom):")
-    for feat, score in importances.items():
-        logger.info(f"  {feat:<20}: {score}")
-
-    return metrics
-
-
-if __name__ == "__main__":
-    evaluate_model()
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: release.zip
+          startup-command: ${{ env.STARTUP_COMMAND }}
