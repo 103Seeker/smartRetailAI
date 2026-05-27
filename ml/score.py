@@ -16,3 +16,4 @@ def run(raw_data):
     probs = model.predict_proba(features).max(axis=1).tolist()
     return json.dumps({'predictions': preds, 'probabilities': probs})
 
+#change
