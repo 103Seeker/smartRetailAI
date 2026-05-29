@@ -44,12 +44,14 @@ class AnomalyAgent:
         try:
             df = pd.read_parquet(CURATED_PATH)
 
-            if "sales" not in df.columns:
-                return "No sales column found in curated data."
+            sales_col = "weekly_sales" if "weekly_sales" in df.columns else "sales"
 
-            mean   = df["sales"].mean()
-            std    = df["sales"].std()
-            df["z_score"] = (df["sales"] - mean) / std
+            if sales_col not in df.columns:
+                return "No sales or weekly_sales column found in curated data."
+
+            mean   = df[sales_col].mean()
+            std    = df[sales_col].std()
+            df["z_score"] = (df[sales_col] - mean) / std
 
             anomalies = df[df["z_score"].abs() > threshold].copy()
 
@@ -64,7 +66,7 @@ class AnomalyAgent:
                 lines.append(
                     f"Date: {row.get('date', 'N/A')} | "
                     f"Product: {row.get('product_id', 'N/A')} | "
-                    f"Sales: {row['sales']:.1f} | "
+                    f"Sales: {row[sales_col]:.1f} | "
                     f"Z-score: {row['z_score']:.2f} ({direction})"
                 )
 
